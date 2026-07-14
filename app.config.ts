@@ -28,8 +28,8 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "YouTube AdBlock",
-  appSlug: "youtube-adblock-browser",
+  appName: "AdFreeVideoPlayer",
+  appSlug: "adfreevideoplayer",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
   logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663396755097/ZDZnh8rABGYMrTXhCq2RAt/icon-9EsEJMFa3fcG22AH5DJCAd.webp",
@@ -41,6 +41,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
+  owner: "daeskander",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -124,6 +125,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  extra: {
+    eas: {
+      projectId: "c6415bc5-c131-453c-bb5b-b4d9083133e5",
+    },
   },
 };
 
