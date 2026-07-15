@@ -6,7 +6,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { ScreenContainer } from '@/components/screen-container';
 import { cn } from '@/lib/utils';
 import * as Haptics from 'expo-haptics';
-import { ADVANCED_AD_BLOCKING_SCRIPT, MEDIA_PLAYBACK_STABILITY_SCRIPT } from '@/lib/webview-config';
+import { ADVANCED_AD_BLOCKING_SCRIPT } from '@/lib/webview-config';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useColors } from '@/hooks/use-colors';
 
@@ -202,8 +202,7 @@ export default function BrowserScreen() {
               setInputUrl(state.url);
               saveHistoryItem(state.url, state.title);
             }}
-            injectedJavaScriptBeforeContentLoaded={MEDIA_PLAYBACK_STABILITY_SCRIPT}
-            injectedJavaScript={`${MEDIA_PLAYBACK_STABILITY_SCRIPT}\n${adBlockingEnabled ? ADVANCED_AD_BLOCKING_SCRIPT : 'true;'}`}
+            injectedJavaScript={adBlockingEnabled ? ADVANCED_AD_BLOCKING_SCRIPT : 'true;'}
             onMessage={handleWebViewMessage}
             javaScriptEnabled={true}
             domStorageEnabled={true}
@@ -222,7 +221,7 @@ export default function BrowserScreen() {
             mixedContentMode="always"
             textZoom={100}
             overScrollMode="always"
-            setSupportMultipleWindows={false}
+            setSupportMultipleWindows={true}
             pointerEvents="auto"
           />
         </View>

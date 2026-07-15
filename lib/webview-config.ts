@@ -1,73 +1,4 @@
 /**
- * Media playback stability script.
- * Keeps embedded video elements PiP-friendly without hiding native controls.
- */
-export const MEDIA_PLAYBACK_STABILITY_SCRIPT = `
-(function() {
-  if (window.__adFreeVideoPlayerMediaPatchApplied) {
-    true;
-    return;
-  }
-  window.__adFreeVideoPlayerMediaPatchApplied = true;
-
-  try {
-    Object.defineProperty(document, 'hidden', {
-      configurable: true,
-      get: function() { return false; },
-    });
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      get: function() { return 'visible'; },
-    });
-  } catch (e) {}
-
-  const blockedEvents = ['visibilitychange', 'webkitvisibilitychange', 'pagehide', 'freeze'];
-  blockedEvents.forEach(function(eventName) {
-    document.addEventListener(eventName, function(event) {
-      event.stopImmediatePropagation();
-    }, true);
-    window.addEventListener(eventName, function(event) {
-      event.stopImmediatePropagation();
-    }, true);
-  });
-
-  function prepareVideo(video) {
-    try {
-      video.setAttribute('playsinline', '');
-      video.setAttribute('webkit-playsinline', '');
-      video.disablePictureInPicture = false;
-      video.controls = true;
-
-      if (!video.__adFreeVideoPlayerPiPListenersAttached) {
-        video.__adFreeVideoPlayerPiPListenersAttached = true;
-        video.addEventListener('enterpictureinpicture', function() {
-          window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'PIP_STATE', state: 'entered' }));
-        });
-        video.addEventListener('leavepictureinpicture', function() {
-          window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'PIP_STATE', state: 'left' }));
-        });
-        video.addEventListener('pause', function() {
-          if (document.pictureInPictureElement === video && !video.ended) {
-            setTimeout(function() {
-              video.play().catch(function() {});
-            }, 250);
-          }
-        });
-      }
-    } catch (e) {}
-  }
-
-  function prepareVideos() {
-    document.querySelectorAll('video').forEach(prepareVideo);
-  }
-
-  prepareVideos();
-  setInterval(prepareVideos, 1500);
-  true;
-})();
-`;
-
-/**
  * Advanced ad-blocking script - focused and minimal.
  * Removes ads without interfering with page interactivity.
  */
@@ -133,8 +64,6 @@ export const ADVANCED_AD_BLOCKING_SCRIPT = `
   observer.observe(document.body, {
     childList: true,
     subtree: true,
-    attributes: true,
-    attributeFilter: ['style', 'class', 'data-is-ad'],
   });
 
   window.adBlockerActive = true;
