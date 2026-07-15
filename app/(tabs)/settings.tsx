@@ -52,15 +52,14 @@ export default function SettingsScreen() {
           <Text className="text-2xl font-bold text-foreground">Settings</Text>
         </View>
 
-        {/* Ad-Blocking Section */}
         <View className="px-4 py-4 border-b border-border">
-          <Text className="text-lg font-semibold text-foreground mb-4">Ad-Blocking</Text>
+          <Text className="text-lg font-semibold text-foreground mb-4">Playback</Text>
           
           <View className="bg-surface border border-border rounded-lg p-4 flex-row items-center justify-between">
             <View className="flex-1">
-              <Text className="text-base font-semibold text-foreground">Block All Ads</Text>
+              <Text className="text-base font-semibold text-foreground">Focus Mode</Text>
               <Text className="text-sm text-muted mt-1">
-                {adBlockingEnabled ? 'Ads are being blocked' : 'Ads are not blocked'}
+                {adBlockingEnabled ? 'Clean up promoted placements and overlays' : 'Load pages without cleanup scripts'}
               </Text>
             </View>
             <Switch
@@ -75,9 +74,9 @@ export default function SettingsScreen() {
             <View className="flex-row gap-2 items-start">
               <Text className="text-lg">✓</Text>
               <View className="flex-1">
-                <Text className="text-sm font-semibold text-success">Protection Active</Text>
+                <Text className="text-sm font-semibold text-success">PiP Ready</Text>
                 <Text className="text-xs text-success/80 mt-1">
-                  All YouTube ads are being blocked in real-time
+                  Video playback is configured for inline, fullscreen, and picture-in-picture controls.
                 </Text>
               </View>
             </View>
@@ -102,7 +101,7 @@ export default function SettingsScreen() {
           </View>
 
           <Text className="text-xs text-muted">
-            Clearing cache will remove browsing history and temporary files
+            Clearing cache removes local browsing history and temporary app data.
           </Text>
         </View>
 
@@ -128,9 +127,9 @@ export default function SettingsScreen() {
           </View>
 
           <View className="bg-primary/10 border border-primary rounded-lg p-4 mt-4">
-            <Text className="text-sm font-semibold text-foreground mb-2">YouTube AdBlock Browser</Text>
+            <Text className="text-sm font-semibold text-foreground mb-2">AdFreeVideoPlayer</Text>
             <Text className="text-xs text-muted leading-relaxed">
-              A mobile browser designed specifically for YouTube with complete ad-blocking capabilities. Watch your favorite videos without any interruptions.
+              A focused mobile video browser for watching with fewer distractions and native playback controls.
             </Text>
           </View>
         </View>

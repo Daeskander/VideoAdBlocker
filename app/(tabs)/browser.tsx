@@ -1,31 +1,73 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, Platform, PanResponder, GestureResponderEvent } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { ScreenContainer } from '@/components/screen-container';
 import { cn } from '@/lib/utils';
 import * as Haptics from 'expo-haptics';
-import { ADVANCED_AD_BLOCKING_SCRIPT } from '@/lib/webview-config';
+import { ADVANCED_AD_BLOCKING_SCRIPT, MEDIA_PLAYBACK_STABILITY_SCRIPT } from '@/lib/webview-config';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useColors } from '@/hooks/use-colors';
+
+const DEFAULT_URL = 'https://www.youtube.com';
+
+function normalizeUrl(value: string) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return DEFAULT_URL;
+  }
+
+  if (!trimmedValue.startsWith('http://') && !trimmedValue.startsWith('https://')) {
+    if (trimmedValue.includes('.')) {
+      return `https://${trimmedValue}`;
+    }
+
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(trimmedValue)}`;
+  }
+
+  return trimmedValue;
+}
 
 export default function BrowserScreen() {
+  const colors = useColors();
+  const params = useLocalSearchParams<{ url?: string }>();
   const webViewRef = useRef<WebView>(null);
-  const [url, setUrl] = useState('https://www.youtube.com');
-  const [inputUrl, setInputUrl] = useState('https://www.youtube.com');
+  const initialUrl = normalizeUrl(typeof params.url === 'string' ? params.url : DEFAULT_URL);
+  const [url, setUrl] = useState(initialUrl);
+  const [inputUrl, setInputUrl] = useState(initialUrl);
   const [loading, setLoading] = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
-  const gestureStartX = useRef(0);
-  const gestureStartY = useRef(0);
-  const isGestureActive = useRef(false);
+  const [adBlockingEnabled, setAdBlockingEnabled] = useState(true);
+
+  useEffect(() => {
+    if (typeof params.url !== 'string') return;
+
+    const nextUrl = normalizeUrl(params.url);
+    setUrl(nextUrl);
+    setInputUrl(nextUrl);
+  }, [params.url]);
+
+  useFocusEffect(useCallback(() => {
+    let isActive = true;
+
+    AsyncStorage.getItem('ad_blocking_enabled')
+      .then((stored) => {
+        if (isActive && stored !== null) {
+          setAdBlockingEnabled(JSON.parse(stored));
+        }
+      })
+      .catch((error) => console.error('Error loading ad-blocking setting:', error));
+
+    return () => {
+      isActive = false;
+    };
+  }, []));
 
   const handleNavigate = useCallback(() => {
-    let urlToNavigate = inputUrl;
-    if (!urlToNavigate.startsWith('http://') && !urlToNavigate.startsWith('https://')) {
-      if (urlToNavigate.includes('.')) {
-        urlToNavigate = 'https://' + urlToNavigate;
-      } else {
-        urlToNavigate = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(urlToNavigate);
-      }
-    }
+    const urlToNavigate = normalizeUrl(inputUrl);
     setUrl(urlToNavigate);
     setInputUrl(urlToNavigate);
   }, [inputUrl]);
@@ -57,122 +99,95 @@ export default function BrowserScreen() {
       if (data.type === 'AD_BLOCKER_READY') {
         console.log('Ad blocker is active');
       }
+      if (data.type === 'PIP_STATE') {
+        console.log('PiP state:', data.state);
+      }
     } catch (e) {
       // Ignore parsing errors
     }
   }, []);
 
-  const handleGestureStart = useCallback((e: GestureResponderEvent) => {
-    gestureStartX.current = e.nativeEvent.pageX;
-    gestureStartY.current = e.nativeEvent.pageY;
-    isGestureActive.current = true;
+  const saveHistoryItem = useCallback(async (nextUrl: string, title?: string) => {
+    if (!nextUrl.includes('youtube.com') && !nextUrl.includes('youtu.be')) return;
+
+    try {
+      const stored = await AsyncStorage.getItem('youtube_history');
+      const items = stored ? JSON.parse(stored) : [];
+      const filteredItems = items.filter((item: { url: string }) => item.url !== nextUrl);
+      const nextItems = [
+        {
+          id: `${Date.now()}`,
+          url: nextUrl,
+          title: title || 'YouTube',
+          timestamp: Date.now(),
+        },
+        ...filteredItems,
+      ].slice(0, 50);
+
+      await AsyncStorage.setItem('youtube_history', JSON.stringify(nextItems));
+    } catch (error) {
+      console.error('Error saving history:', error);
+    }
   }, []);
-
-  const handleGestureEnd = useCallback((e: GestureResponderEvent) => {
-    if (!isGestureActive.current) return;
-    isGestureActive.current = false;
-
-    const endX = e.nativeEvent.pageX;
-    const endY = e.nativeEvent.pageY;
-    const deltaX = endX - gestureStartX.current;
-    const deltaY = endY - gestureStartY.current;
-
-    // Only consider horizontal swipes (ignore vertical swipes)
-    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
-
-    // Minimum swipe distance (50 pixels)
-    const minSwipeDistance = 50;
-
-    // Swipe right (go back)
-    if (deltaX > minSwipeDistance && canGoBack) {
-      handleGoBack();
-    }
-    // Swipe left (go forward)
-    else if (deltaX < -minSwipeDistance && canGoForward) {
-      handleGoForward();
-    }
-  }, [canGoBack, canGoForward, handleGoBack, handleGoForward]);
 
   return (
     <ScreenContainer className="flex-1 bg-background" edges={['top', 'left', 'right', 'bottom']} style={{ pointerEvents: 'auto' }}>
       <View className="flex-1 bg-background" style={{ pointerEvents: 'auto' }}>
-        {/* URL Bar */}
-        <View className="bg-surface border-b border-border px-3 py-3 gap-2" pointerEvents="auto">
+        <View className="bg-background border-b border-border px-3 py-3 gap-3" pointerEvents="auto">
           <View className="flex-row items-center gap-2">
             <TextInput
               value={inputUrl}
               onChangeText={setInputUrl}
-              placeholder="Enter URL or search..."
-              placeholderTextColor="#999"
+              placeholder="Search or paste a link"
+              placeholderTextColor="#8A8F98"
               onSubmitEditing={handleNavigate}
-              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-foreground"
+              className="flex-1 bg-surface border border-border rounded-2xl px-4 py-3 text-foreground"
               returnKeyType="go"
+              autoCapitalize="none"
+              autoCorrect={false}
             />
-          </View>
-
-          {/* Navigation Controls */}
-          <View className="flex-row gap-2 justify-center">
             <Pressable
-              onPress={handleGoBack}
-              disabled={!canGoBack}
-              style={({ pressed }) => [
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-              className={cn(
-                'px-4 py-2 rounded-lg bg-primary',
-                !canGoBack && 'opacity-50'
-              )}
+              onPress={handleNavigate}
+              className="h-12 w-12 rounded-2xl bg-primary items-center justify-center active:opacity-80"
+              accessibilityRole="button"
+              accessibilityLabel="Go"
             >
-              <Text className="text-white font-semibold">← Back</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleGoForward}
-              disabled={!canGoForward}
-              style={({ pressed }) => [
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-              className={cn(
-                'px-4 py-2 rounded-lg bg-primary',
-                !canGoForward && 'opacity-50'
-              )}
-            >
-              <Text className="text-white font-semibold">Forward →</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleRefresh}
-              style={({ pressed }) => [
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-              className="px-4 py-2 rounded-lg bg-primary"
-            >
-              <Text className="text-white font-semibold">🔄 Refresh</Text>
+              <IconSymbol name="magnifyingglass" size={22} color="#FFFFFF" />
             </Pressable>
           </View>
 
-          {/* Ad Blocker Status */}
-          <View className="flex-row items-center gap-2 bg-success/10 border border-success rounded-lg px-3 py-2">
-            <View className="w-2 h-2 rounded-full bg-success" />
-            <Text className="text-sm text-foreground font-medium">Ad-blocking active</Text>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row gap-2">
+              <ToolbarButton
+                icon="chevron.backward"
+                label="Back"
+                onPress={handleGoBack}
+                disabled={!canGoBack}
+              />
+              <ToolbarButton
+                icon="chevron.forward"
+                label="Forward"
+                onPress={handleGoForward}
+                disabled={!canGoForward}
+              />
+              <ToolbarButton icon="arrow.clockwise" label="Refresh" onPress={handleRefresh} />
+            </View>
+            <View className="flex-row items-center gap-2 rounded-full bg-surface border border-border px-3 py-2">
+              <View className={cn('w-2 h-2 rounded-full', adBlockingEnabled ? 'bg-success' : 'bg-warning')} />
+              <Text className="text-xs text-muted font-medium">
+                {adBlockingEnabled ? 'Focus mode' : 'Standard mode'}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* WebView */}
-        <View 
-          className="flex-1" 
-          style={{ pointerEvents: 'auto' }}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => false}
-          onResponderGrant={handleGestureStart}
-          onResponderRelease={handleGestureEnd}
-        >
+        <View className="flex-1 bg-background">
           {loading && (
-            <View 
-              className="absolute inset-0 bg-background/50 flex items-center justify-center z-10"
-              pointerEvents="auto"
-            >
-              <ActivityIndicator size="large" color="#FF0000" />
+            <View className="absolute top-3 left-0 right-0 z-10 items-center" pointerEvents="none">
+              <View className="flex-row items-center gap-2 rounded-full bg-background/95 border border-border px-3 py-2">
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text className="text-xs text-muted font-medium">Loading</Text>
+              </View>
             </View>
           )}
           <WebView
@@ -183,8 +198,12 @@ export default function BrowserScreen() {
             onNavigationStateChange={(state) => {
               setCanGoBack(state.canGoBack);
               setCanGoForward(state.canGoForward);
+              setUrl(state.url);
+              setInputUrl(state.url);
+              saveHistoryItem(state.url, state.title);
             }}
-            injectedJavaScript={ADVANCED_AD_BLOCKING_SCRIPT}
+            injectedJavaScriptBeforeContentLoaded={MEDIA_PLAYBACK_STABILITY_SCRIPT}
+            injectedJavaScript={`${MEDIA_PLAYBACK_STABILITY_SCRIPT}\n${adBlockingEnabled ? ADVANCED_AD_BLOCKING_SCRIPT : 'true;'}`}
             onMessage={handleWebViewMessage}
             javaScriptEnabled={true}
             domStorageEnabled={true}
@@ -192,7 +211,9 @@ export default function BrowserScreen() {
             scalesPageToFit={true}
             allowsFullscreenVideo={true}
             allowsInlineMediaPlayback={true}
+            allowsPictureInPictureMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
+            allowsBackForwardNavigationGestures={true}
             scrollEnabled={true}
             bounces={true}
             decelerationRate="normal"
@@ -201,11 +222,40 @@ export default function BrowserScreen() {
             mixedContentMode="always"
             textZoom={100}
             overScrollMode="always"
-            setSupportMultipleWindows={true}
+            setSupportMultipleWindows={false}
             pointerEvents="auto"
           />
         </View>
       </View>
     </ScreenContainer>
+  );
+}
+
+function ToolbarButton({
+  icon,
+  label,
+  onPress,
+  disabled,
+}: {
+  icon: React.ComponentProps<typeof IconSymbol>['name'];
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const colors = useColors();
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      className={cn(
+        'h-10 w-10 rounded-full bg-surface border border-border items-center justify-center active:opacity-70',
+        disabled && 'opacity-40'
+      )}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <IconSymbol name={icon} size={20} color={colors.foreground} />
+    </Pressable>
   );
 }

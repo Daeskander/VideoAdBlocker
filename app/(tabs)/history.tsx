@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenContainer } from '@/components/screen-container';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useColors } from '@/hooks/use-colors';
 
 interface HistoryItem {
   id: string;
@@ -14,6 +16,7 @@ interface HistoryItem {
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const colors = useColors();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,7 +111,7 @@ export default function HistoryScreen() {
               >
                 <View className="flex-row gap-3 items-center">
                   <View className="w-12 h-12 rounded-lg bg-surface border border-border items-center justify-center flex-shrink-0">
-                    <Text className="text-lg">▶️</Text>
+                    <IconSymbol name="play.rectangle.fill" size={24} color={colors.primary} />
                   </View>
                   <View className="flex-1 min-w-0">
                     <Text className="text-sm font-semibold text-foreground" numberOfLines={2}>
